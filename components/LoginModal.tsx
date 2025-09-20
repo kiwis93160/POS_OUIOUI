@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useRestaurantData } from '../hooks/useRestaurantData';
 import { ChefHat, LogIn, X } from 'lucide-react';
 import Card from './ui/Card';
+import { resolveDefaultRoute } from '../appRoutes';
 
 interface LoginModalProps {
     isOpen: boolean;
@@ -73,11 +74,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             if (role) {
                 onClose(); // Fermer le modal en cas de succès
                 // Naviguer vers la page appropriée
-                const { permissions } = role;
-                if (permissions['/'] !== 'none') navigate('/');
-                else if (permissions['/ventes'] !== 'none') navigate('/ventes');
-                else if (permissions['/cocina'] !== 'none') navigate('/cocina');
-                else navigate('/'); // Fallback
+                const defaultRoute = resolveDefaultRoute(role.permissions);
+                navigate(defaultRoute);
             } else {
                 setError('PIN incorrecto. Inténtelo de nuevo.');
                 setPin(Array(6).fill(''));

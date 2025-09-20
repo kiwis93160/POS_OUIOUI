@@ -16,6 +16,7 @@ import CustomerOrder from './pages/CustomerOrder';
 import SiteEditor from './pages/SiteEditor';
 import Takeaway from './pages/Takeaway'; // Importation de la nouvelle page
 import { useRestaurantData } from './hooks/useRestaurantData';
+import { resolveDefaultRoute } from './appRoutes';
 
 const AppRoutes: React.FC = () => {
     const { currentUserRole } = useRestaurantData();
@@ -31,14 +32,7 @@ const AppRoutes: React.FC = () => {
 
     const { permissions } = currentUserRole;
 
-    // Aide pour déterminer la page par défaut en fonction des permissions
-    const getDefaultPath = () => {
-        if (permissions['/'] !== 'none') return '/';
-        if (permissions['/ventes'] !== 'none') return '/ventes';
-        if (permissions['/cocina'] !== 'none') return '/cocina';
-        // Ajouter d'autres solutions de repli si nécessaire
-        return '/login'; // Ne devrait pas se produire si connecté
-    };
+    const getDefaultPath = () => resolveDefaultRoute(permissions);
 
     return (
         <Routes>

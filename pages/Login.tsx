@@ -9,6 +9,7 @@ import OrderHistoryModal from '../components/OrderHistoryModal';
 import { customerOrderHistoryService } from '../services/customerOrderHistoryService';
 import type { HistoricCommande } from '../types';
 import Section from '../components/ui/Section';
+import { resolveDefaultRoute } from '../appRoutes';
 
 const formatCOP = (value: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(value));
 
@@ -40,7 +41,7 @@ const MesCommandes: React.FC<{
 
 
 const Login: React.FC = () => {
-    const { userRole, siteAssets, loading } = useRestaurantData();
+    const { currentUserRole, siteAssets, loading } = useRestaurantData();
     const navigate = useNavigate();
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -53,8 +54,13 @@ const Login: React.FC = () => {
         : siteAssets;
 
     useEffect(() => {
-        if (userRole) navigate('/');
-    }, [userRole, navigate]);
+        if (!currentUserRole) return;
+
+        const destination = resolveDefaultRoute(currentUserRole.permissions);
+        if (destination !== '/login') {
+            navigate(destination);
+        }
+    }, [currentUserRole, navigate]);
 
     const loadHistory = useCallback(() => {
         setOrderHistory(customerOrderHistoryService.getHistory());
