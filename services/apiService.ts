@@ -90,7 +90,7 @@ export const api = {
     // --- Auth & Roles ---
     getRoles: (): Promise<Role[]> => apiFetch('/roles'),
     saveRoles: (newRoles: Role[]): Promise<void> => apiFetch('/roles', { method: 'POST', body: JSON.stringify(newRoles) }),
-    loginWithPin: (pin: string): Promise<Role | null> => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ pin }) }),
+    loginWithPin: (pin: string): Promise<Role | null> => apiFetch('/auth-login', { method: 'POST', body: JSON.stringify({ pin }) }),
 
     // --- POS - Commande ---
     getCommandeByTableId: (tableId: number): Promise<Commande | null> => apiFetch(`/commandes?tableId=${tableId}`),
