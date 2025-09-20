@@ -14,16 +14,40 @@ const apiFetch = async <T>(endpoint: string, options: RequestInit = {}): Promise
             ...options.headers,
         },
     });
+
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errorData.message || `API error: ${response.statusText}`);
+        const errorBody = await response.text();
+        if (errorBody) {
+            let message = errorBody;
+            try {
+                const parsedError = JSON.parse(errorBody) as { message?: string };
+                if (parsedError.message) {
+                    message = parsedError.message;
+                }
+            } catch {
+                // Ignore JSON parse errors and fall back to raw body text.
+            }
+            throw new Error(message || response.statusText || 'API error');
+        }
+        throw new Error(response.statusText || 'API error');
     }
-    // Handle cases where the response might be empty (e.g., DELETE, PUT with no content)
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.indexOf("application/json") !== -1) {
-        return response.json() as Promise<T>;
+
+    const contentType = response.headers.get('content-type') ?? '';
+    const rawBody = await response.text();
+    const trimmedBody = rawBody.trim();
+
+    if (!trimmedBody) {
+        return null as T;
     }
-    return Promise.resolve(undefined as unknown as T);
+
+    try {
+        return JSON.parse(trimmedBody) as T;
+    } catch (parseError) {
+        if (contentType.includes('application/json')) {
+            throw new Error(`Failed to parse JSON response: ${(parseError as Error).message}`);
+        }
+        throw new Error(`Expected JSON response but received content-type: ${contentType || 'unknown'}`);
+    }
 };
 
 // Helper for file uploads (FormData)

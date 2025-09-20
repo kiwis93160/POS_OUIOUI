@@ -5,6 +5,24 @@ import { defaultImageAssets } from '../components/ImageAssets';
 
 type SiteAssets = typeof defaultImageAssets;
 
+function sanitizeArray<T>(data: unknown): T[] {
+    return Array.isArray(data) ? (data as T[]) : [];
+}
+
+function sanitizeSiteAssets(data: unknown): SiteAssets {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const sanitizedEntries = Object.entries(data as Record<string, unknown>)
+            .reduce<Record<string, string>>((acc, [key, value]) => {
+                if (typeof value === 'string') {
+                    acc[key] = value;
+                }
+                return acc;
+            }, {});
+        return { ...defaultImageAssets, ...sanitizedEntries };
+    }
+    return { ...defaultImageAssets };
+}
+
 interface DataContextType {
     ingredients: Ingredient[];
     produits: Produit[];
@@ -117,11 +135,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 api.getCategories(),
                 api.getSiteAssets(),
             ]);
-            setIngredients(ingData);
-            setProduits(prodData);
-            setRecettes(recData);
-            setCategorias(catData);
-            setSiteAssets(assetsData);
+            setIngredients(sanitizeArray<Ingredient>(ingData));
+            setProduits(sanitizeArray<Produit>(prodData));
+            setRecettes(sanitizeArray<Recette>(recData));
+            setCategorias(sanitizeArray<Categoria>(catData));
+            setSiteAssets(sanitizeSiteAssets(assetsData));
         } catch (err) {
             setError(err as Error);
         } finally {
@@ -148,23 +166,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 api.getPendingTakeawayOrders(),
                 api.getActiveCommandes(),
             ]);
-            setIngredients(ingData);
-            setProduits(prodData);
-            setRecettes(recData);
-            setVentes(venData);
-            setAchats(achData);
-            setTables(tabData);
-            setKitchenOrders(kitData);
-            setCategorias(catData);
-            setRoles(rolesData);
-            setSiteAssets(assetsData);
-            setReadyTakeawayOrders(readyTakeawayData);
-            setPendingTakeawayOrders(pendingTakeawayData);
-            setActiveCommandes(activeCmdsData);
-            
+            const safeIngredients = sanitizeArray<Ingredient>(ingData);
+            const safeProduits = sanitizeArray<Produit>(prodData);
+            const safeRecettes = sanitizeArray<Recette>(recData);
+            const safeVentes = sanitizeArray<Vente>(venData);
+            const safeAchats = sanitizeArray<Achat>(achData);
+            const safeTables = sanitizeArray<Table>(tabData);
+            const safeKitchenOrders = sanitizeArray<Commande>(kitData);
+            const safeCategorias = sanitizeArray<Categoria>(catData);
+            const safeRoles = sanitizeArray<Role>(rolesData);
+            const safeReadyTakeawayOrders = sanitizeArray<Commande>(readyTakeawayData);
+            const safePendingTakeawayOrders = sanitizeArray<Commande>(pendingTakeawayData);
+            const safeActiveCommandes = sanitizeArray<Commande>(activeCmdsData);
+
+            setIngredients(safeIngredients);
+            setProduits(safeProduits);
+            setRecettes(safeRecettes);
+            setVentes(safeVentes);
+            setAchats(safeAchats);
+            setTables(safeTables);
+            setKitchenOrders(safeKitchenOrders);
+            setCategorias(safeCategorias);
+            setRoles(safeRoles);
+            setSiteAssets(sanitizeSiteAssets(assetsData));
+            setReadyTakeawayOrders(safeReadyTakeawayOrders);
+            setPendingTakeawayOrders(safePendingTakeawayOrders);
+            setActiveCommandes(safeActiveCommandes);
+
             const sessionRoleId = getSessionRole();
             if (sessionRoleId) {
-                const user = rolesData.find(r => r.id === sessionRoleId);
+                const user = safeRoles.find(r => r.id === sessionRoleId);
                 setCurrentUserRole(user || null);
             }
 
@@ -194,7 +225,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [userRole, roles]);
 
     useEffect(() => {
-        if (!ingredients.length || !recettes.length || !produits.length) return;
+        if (!ingredients?.length || !recettes?.length || !produits?.length) return;
         const lowStockMap = new Map<number, string[]>();
         for (const produit of produits) {
             const recette = recettes.find(r => r.produit_id === produit.id);
