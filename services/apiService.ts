@@ -1,8 +1,9 @@
-import type { Ingredient, Produit, Recette, Vente, Achat, RecetteItem, IngredientPayload, ProduitPayload, Table, Commande, CommandeItem, Categoria, Role, TablePayload } from '../types';
+import type { Ingredient, Produit, Recette, Vente, Achat, RecetteItem, IngredientPayload, ProduitPayload, Table, Commande, CommandeItem, Categoria, Role, TablePayload, TimeEntry } from '../types';
+import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
-// In a Netlify setup, this would point to the serverless functions path.
-// For local dev, you'd proxy this path to your function server.
-const API_BASE_URL = '/.netlify/functions';
+// Allow overriding the functions base path so that the application can run both
+// on Netlify and in local development environments that proxy the functions server.
+const API_BASE_URL = import.meta.env.VITE_NETLIFY_FUNCTIONS_BASE ?? '/.netlify/functions';
 
 // A helper function to streamline JSON fetch requests and handle errors.
 const apiFetch = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
@@ -26,9 +27,13 @@ const apiFetch = async <T>(endpoint: string, options: RequestInit = {}): Promise
 };
 
 // Helper for file uploads (FormData)
-const apiFetchFormData = async <T>(endpoint: string, formData: FormData, method: 'POST' | 'PUT' = 'POST'): Promise<T> => {
-     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: method,
+const apiFetchFormData = async <T>(
+    endpoint: string,
+    formData: FormData,
+    method: 'POST' | 'PUT' | 'PATCH' = 'POST'
+): Promise<T> => {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method,
         body: formData,
     });
     if (!response.ok) {
@@ -36,7 +41,7 @@ const apiFetchFormData = async <T>(endpoint: string, formData: FormData, method:
         throw new Error(errorData.message || `API error: ${response.statusText}`);
     }
     return response.json() as Promise<T>;
-}
+};
 
 export const api = {
     // --- Core Data Getters ---
@@ -47,17 +52,39 @@ export const api = {
     getAchats: (): Promise<Achat[]> => apiFetch('/data/purchases'),
     getCategories: (): Promise<Categoria[]> => apiFetch('/data/categories'),
     getTables: (): Promise<Table[]> => apiFetch('/data/tables'),
-    getSiteAssets: async (): Promise<any> => apiFetch('/data/site-assets'),
+    getActiveCommandes: (): Promise<Commande[]> => apiFetch('/commandes/active'),
+    getSiteAssets: async (): Promise<Record<string, string>> => {
+        const siteAssetsTable = import.meta.env.VITE_SUPABASE_SITE_ASSETS_TABLE as string | undefined;
+        if (isSupabaseConfigured() && siteAssetsTable) {
+            try {
+                const client = getSupabaseClient();
+                const { data, error } = await client
+                    .from<{ key: string; value: string }>(siteAssetsTable)
+                    .select('key, value');
+                if (error) {
+                    console.warn('Supabase site asset query failed, falling back to Netlify function.', error);
+                } else if (data) {
+                    return data.reduce<Record<string, string>>((acc, row) => {
+                        acc[row.key] = row.value;
+                        return acc;
+                    }, {});
+                }
+            } catch (error) {
+                console.warn('Supabase site asset lookup failed, falling back to Netlify function.', error);
+            }
+        }
+        return apiFetch('/data/site-assets');
+    },
     
     // --- Site Editor ---
     updateSiteAsset: (assetKey: string, data: File | string): Promise<void> => {
         if (typeof data === 'string') {
-            return apiFetch('/site-assets', { method: 'POST', body: JSON.stringify({ key: assetKey, data }) });
+            return apiFetch('/site-assets', { method: 'PUT', body: JSON.stringify({ key: assetKey, data }) });
         }
         const formData = new FormData();
         formData.append('key', assetKey);
         formData.append('image', data);
-        return apiFetchFormData('/site-assets', formData);
+        return apiFetchFormData('/site-assets', formData, 'PUT');
     },
 
     // --- Auth & Roles ---
@@ -103,8 +130,25 @@ export const api = {
     
     // --- Management - Products ---
     updateRecette: (produit_id: number, newItems: RecetteItem[]): Promise<Recette> => apiFetch(`/products/${produit_id}/recipe`, { method: 'PUT', body: JSON.stringify({ items: newItems }) }),
-    addProduct: (payload: ProduitPayload, items: RecetteItem[]): Promise<Produit> => apiFetch('/products', { method: 'POST', body: JSON.stringify({ product: payload, recipeItems: items }) }),
+    addProduct: (payload: ProduitPayload, items: RecetteItem[], imageFile?: File): Promise<Produit> => {
+        if (imageFile) {
+            const formData = new FormData();
+            formData.append('product', JSON.stringify(payload));
+            formData.append('recipeItems', JSON.stringify(items));
+            formData.append('image', imageFile);
+            return apiFetchFormData('/products', formData);
+        }
+        return apiFetch('/products', { method: 'POST', body: JSON.stringify({ product: payload, recipeItems: items }) });
+    },
     updateProduct: (id: number, payload: ProduitPayload): Promise<Produit> => apiFetch(`/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    updateProductImage: (productId: number, imageFile: File | null): Promise<Produit> => {
+        if (!imageFile) {
+            return apiFetch(`/products/${productId}/image`, { method: 'DELETE' });
+        }
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        return apiFetchFormData(`/products/${productId}/image`, formData, 'PUT');
+    },
     updateProductStatus: (productId: number, status: Produit['estado']): Promise<Produit> => apiFetch(`/products/${productId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     deleteProduct: (id: number): Promise<void> => apiFetch(`/products/${id}`, { method: 'DELETE' }),
 
@@ -116,4 +160,7 @@ export const api = {
     addTable: (data: TablePayload): Promise<void> => apiFetch('/tables', { method: 'POST', body: JSON.stringify(data) }),
     updateTable: (id: number, data: Omit<TablePayload, 'id'>): Promise<void> => apiFetch(`/tables/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteTable: (id: number): Promise<void> => apiFetch(`/tables/${id}`, { method: 'DELETE' }),
+
+    // --- Staff management ---
+    getTimeEntries: (): Promise<TimeEntry[]> => apiFetch('/time-tracking/entries'),
 };
