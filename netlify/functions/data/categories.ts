@@ -19,7 +19,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<Categoria>('categories')
+            .from('categories')
             .select('*')
             .order('nom', { ascending: true });
 
@@ -28,7 +28,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve categories');
         }
 
-        return jsonResponse(data ?? []);
+        const rows = (data ?? []) as Categoria[];
+        return jsonResponse(rows);
     } catch (error) {
         console.error('data/categories: unexpected error', error);
         return internalError();

@@ -82,13 +82,12 @@ export const api = {
         if (isSupabaseConfigured() && siteAssetsTable) {
             try {
                 const client = getSupabaseClient();
-                const { data, error } = await client
-                    .from<{ key: string; value: string }>(siteAssetsTable)
-                    .select('key, value');
+                const { data, error } = await client.from(siteAssetsTable).select('key, value');
                 if (error) {
                     console.warn('Supabase site asset query failed, falling back to Netlify function.', error);
                 } else if (data) {
-                    return data.reduce<Record<string, string>>((acc, row) => {
+                    const rows = data as Array<{ key: string; value: string }>;
+                    return rows.reduce<Record<string, string>>((acc, row) => {
                         acc[row.key] = row.value;
                         return acc;
                     }, {});

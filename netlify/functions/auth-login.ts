@@ -59,7 +59,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<Role>('roles')
+            .from('roles')
             .select('*')
             .eq('pin', pin)
             .maybeSingle();
@@ -69,7 +69,8 @@ export default async function handler(request: Request): Promise<Response> {
             return jsonResponse({ message: 'Unable to complete authentication' }, { status: 500 });
         }
 
-        return jsonResponse(data ?? null);
+        const role = data as Role | null;
+        return jsonResponse(role ?? null);
     } catch (error) {
         console.error('auth-login: unexpected error', error);
         return jsonResponse({ message: 'Unexpected server error' }, { status: 500 });

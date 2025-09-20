@@ -46,7 +46,7 @@ export default async function handler(request: Request): Promise<Response> {
         try {
             if (pin) {
                 const { data, error } = await supabase
-                    .from<Role>('roles')
+                    .from('roles')
                     .select('*')
                     .eq('pin', pin)
                     .maybeSingle();
@@ -56,17 +56,19 @@ export default async function handler(request: Request): Promise<Response> {
                     return jsonResponse({ message: 'Unable to retrieve role' }, { status: 500 });
                 }
 
-                return jsonResponse(data ?? null);
+                const role = data as Role | null;
+                return jsonResponse(role ?? null);
             }
 
-            const { data, error } = await supabase.from<Role>('roles').select('*');
+            const { data, error } = await supabase.from('roles').select('*');
 
             if (error) {
                 console.error('roles: Supabase query error', error);
                 return jsonResponse({ message: 'Unable to retrieve roles' }, { status: 500 });
             }
 
-            return jsonResponse(data ?? []);
+            const rolesData = (data ?? []) as Role[];
+            return jsonResponse(rolesData);
         } catch (error) {
             console.error('roles: unexpected error', error);
             return jsonResponse({ message: 'Unexpected server error' }, { status: 500 });
@@ -86,20 +88,20 @@ export default async function handler(request: Request): Promise<Response> {
         }
 
         try {
-            const { data: existingRoles, error: readError } = await supabase.from<Role>('roles').select('id');
+            const { data: existingRoles, error: readError } = await supabase.from('roles').select('id');
             if (readError) {
                 console.error('roles: failed to read existing roles', readError);
                 return jsonResponse({ message: 'Unable to save roles' }, { status: 500 });
             }
 
-            const { error: upsertError } = await supabase.from<Role>('roles').upsert(roles, { onConflict: 'id' });
+            const { error: upsertError } = await supabase.from('roles').upsert(roles, { onConflict: 'id' });
             if (upsertError) {
                 console.error('roles: failed to upsert roles', upsertError);
                 return jsonResponse({ message: 'Unable to save roles' }, { status: 500 });
             }
 
-            const existingIds = new Set((existingRoles ?? []).map(role => role.id));
-            const incomingIds = new Set(roles.map(role => role.id));
+            const existingIds = new Set<string>(((existingRoles ?? []) as Array<{ id: string }>).map(role => role.id));
+            const incomingIds = new Set<string>(roles.map(role => role.id));
             const idsToDelete = Array.from(existingIds).filter(id => !incomingIds.has(id));
 
             if (idsToDelete.length > 0) {

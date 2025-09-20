@@ -19,7 +19,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<Vente>('ventes')
+            .from('ventes')
             .select('*')
             .order('date_vente', { ascending: false });
 
@@ -28,7 +28,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve sales');
         }
 
-        return jsonResponse(data ?? []);
+        const rows = (data ?? []) as Vente[];
+        return jsonResponse(rows);
     } catch (error) {
         console.error('data/sales: unexpected error', error);
         return internalError();

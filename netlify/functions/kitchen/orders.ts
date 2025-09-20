@@ -20,7 +20,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<CommandeRow>('commandes')
+            .from('commandes')
             .select(COMMANDE_SELECT)
             .in('statut', ['en_cours', 'pendiente_validacion'])
             .order('date_creation', { ascending: true });
@@ -30,7 +30,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve kitchen orders');
         }
 
-        const commandes: Commande[] = (data ?? []).map(mapCommandeRow);
+        const rows = (data ?? []) as CommandeRow[];
+        const commandes: Commande[] = rows.map(mapCommandeRow);
         return jsonResponse(commandes);
     } catch (error) {
         console.error('kitchen/orders: unexpected error', error);

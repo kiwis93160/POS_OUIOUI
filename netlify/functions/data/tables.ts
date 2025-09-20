@@ -34,7 +34,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<TableRow>('tables')
+            .from('tables')
             .select(
                 'id, nom, capacite, statut, commande_id, couverts, total_commande, is_ready, ready_timestamp, creation_timestamp, sent_to_kitchen_timestamp, kitchen_status'
             )
@@ -45,7 +45,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve tables');
         }
 
-        const tables: Table[] = (data ?? []).map(row => ({
+        const rows = (data ?? []) as TableRow[];
+        const tables: Table[] = rows.map(row => ({
             id: row.id,
             nom: row.nom,
             capacite: row.capacite,

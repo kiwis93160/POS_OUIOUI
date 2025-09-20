@@ -53,7 +53,7 @@ export default async function handler(request: Request): Promise<Response> {
         }
 
         const { data, error } = await supabase
-            .from<Achat>('achats')
+            .from('achats')
             .insert({
                 ingredient_id,
                 quantite_achetee,
@@ -68,11 +68,13 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to record purchase');
         }
 
-        if (!data) {
+        const achat = data as Achat | null;
+
+        if (!achat) {
             return internalError('Purchase was not recorded');
         }
 
-        return jsonResponse(data, { status: 201 });
+        return jsonResponse(achat, { status: 201 });
     } catch (error) {
         console.error('ingredients/purchase: unexpected error', error);
         return internalError();

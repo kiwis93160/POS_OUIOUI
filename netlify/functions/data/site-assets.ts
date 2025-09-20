@@ -23,14 +23,15 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const tableName = process.env.SUPABASE_SITE_ASSETS_TABLE ?? process.env.VITE_SUPABASE_SITE_ASSETS_TABLE ?? 'site_assets';
-        const { data, error } = await supabase.from<SiteAssetRow>(tableName).select('key, value');
+        const { data, error } = await supabase.from(tableName).select('key, value');
 
         if (error) {
             console.error('data/site-assets: Supabase query error', error);
             return internalError('Unable to retrieve site assets');
         }
 
-        const assets = (data ?? []).reduce<Record<string, string>>((acc, row) => {
+        const rows = (data ?? []) as SiteAssetRow[];
+        const assets = rows.reduce<Record<string, string>>((acc, row) => {
             acc[row.key] = row.value;
             return acc;
         }, {});

@@ -25,7 +25,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<RecetteItemRow>('recette_items')
+            .from('recette_items')
             .select('produit_id, ingredient_id, qte_utilisee')
             .order('produit_id', { ascending: true });
 
@@ -35,7 +35,8 @@ export default async function handler(request: Request): Promise<Response> {
         }
 
         const recettesMap = new Map<number, RecetteItem[]>();
-        for (const row of data ?? []) {
+        const rows = (data ?? []) as RecetteItemRow[];
+        for (const row of rows) {
             if (!recettesMap.has(row.produit_id)) {
                 recettesMap.set(row.produit_id, []);
             }
