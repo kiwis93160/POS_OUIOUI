@@ -14,3 +14,8 @@
 
 [context.production.environment]
   VITE_NETLIFY_FUNCTIONS_BASE = "/.netlify/functions"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
