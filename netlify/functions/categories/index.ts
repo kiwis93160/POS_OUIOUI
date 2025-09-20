@@ -34,7 +34,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<Categoria>('categories')
+            .from('categories')
             .insert({ nom: payload.nom })
             .select('*')
             .maybeSingle();
@@ -44,11 +44,13 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to create category');
         }
 
-        if (!data) {
+        const category = data as Categoria | null;
+
+        if (!category) {
             return internalError('Category creation failed');
         }
 
-        return jsonResponse(data, { status: 201 });
+        return jsonResponse(category, { status: 201 });
     } catch (error) {
         console.error('categories: unexpected error', error);
         return internalError();

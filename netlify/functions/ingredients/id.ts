@@ -8,17 +8,18 @@ export const config = { path: '/ingredients/:id' };
 const loadIngredient = async (id: number): Promise<Ingredient> => {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
-        .from<IngredientRow>('ingredients')
+        .from('ingredients')
         .select(INGREDIENT_SELECT)
         .eq('id', id)
         .maybeSingle();
     if (error) {
         throw new Error(error.message);
     }
-    if (!data) {
+    const row = data as IngredientRow | null;
+    if (!row) {
         throw new Error('Ingredient not found');
     }
-    return mapIngredientRow(data);
+    return mapIngredientRow(row);
 };
 
 export default async function handler(request: Request): Promise<Response> {

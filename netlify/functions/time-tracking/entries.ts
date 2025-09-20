@@ -19,7 +19,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<TimeEntry>('time_entries')
+            .from('time_entries')
             .select('*')
             .order('timestamp', { ascending: false });
 
@@ -28,7 +28,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve time entries');
         }
 
-        return jsonResponse(data ?? []);
+        const rows = (data ?? []) as TimeEntry[];
+        return jsonResponse(rows);
     } catch (error) {
         console.error('time-tracking/entries: unexpected error', error);
         return internalError();

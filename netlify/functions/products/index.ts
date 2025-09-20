@@ -14,17 +14,18 @@ interface ProductCreatePayload {
 const loadProduct = async (id: number): Promise<Produit> => {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
-        .from<ProductRow>('produits')
+        .from('produits')
         .select(PRODUCT_SELECT)
         .eq('id', id)
         .maybeSingle();
     if (error) {
         throw new Error(error.message);
     }
-    if (!data) {
+    const row = data as ProductRow | null;
+    if (!row) {
         throw new Error('Product not found');
     }
-    return mapProductRow(data);
+    return mapProductRow(row);
 };
 
 const parsePayloadFromRequest = async (request: Request): Promise<{ payload: ProductCreatePayload; file: File | null }> => {

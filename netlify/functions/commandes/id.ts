@@ -13,17 +13,18 @@ interface UpdateCommandePayload {
 const loadCommande = async (id: string): Promise<Commande> => {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
-        .from<CommandeRow>('commandes')
+        .from('commandes')
         .select(COMMANDE_SELECT)
         .eq('id', id)
         .maybeSingle();
     if (error) {
         throw new Error(error.message);
     }
-    if (!data) {
+    const row = data as CommandeRow | null;
+    if (!row) {
         throw new Error('Commande not found');
     }
-    return mapCommandeRow(data);
+    return mapCommandeRow(row);
 };
 
 export default async function handler(request: Request): Promise<Response> {

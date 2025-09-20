@@ -20,7 +20,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<CommandeRow>('commandes')
+            .from('commandes')
             .select(COMMANDE_SELECT)
             .eq('statut', 'en_cours')
             .is('table_id', null)
@@ -31,7 +31,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve takeaway orders');
         }
 
-        const commandes: Commande[] = (data ?? []).map(mapCommandeRow);
+        const rows = (data ?? []) as CommandeRow[];
+        const commandes: Commande[] = rows.map(mapCommandeRow);
         return jsonResponse(commandes);
     } catch (error) {
         console.error('takeaway/ready: unexpected error', error);
