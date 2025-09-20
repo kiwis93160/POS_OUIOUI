@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { api } from '../services/mockApiService';
+import { api } from '../services/apiService';
 import type { Ingredient, Produit, Recette, Vente, Achat, RecetteItem, IngredientPayload, ProduitPayload, Table, Commande, CommandeItem, Categoria, UserRole, Role, TablePayload, DailyReportData, TimeEntry } from '../types';
 import { defaultImageAssets } from '../components/ImageAssets';
 
