@@ -22,20 +22,15 @@ const createSupabaseClient = () => {
     });
 };
 
-export default async function handler(request: Request): Promise<Response> {
-    if (request.method !== 'GET') {
-        return jsonResponse(
-            { message: 'Method Not Allowed' },
-            {
-                status: 405,
-                headers: {
-                    Allow: 'GET',
-                    'Content-Type': 'application/json',
-                },
-            }
-        );
+const parseJson = async <T>(request: Request): Promise<T> => {
+    try {
+        return (await request.json()) as T;
+    } catch (error) {
+        throw new Error('Invalid JSON body');
     }
+};
 
+export default async function handler(request: Request): Promise<Response> {
     let supabase;
     try {
         supabase = createSupabaseClient();
@@ -44,35 +39,92 @@ export default async function handler(request: Request): Promise<Response> {
         return jsonResponse({ message: 'Server configuration error' }, { status: 500 });
     }
 
-    const url = new URL(request.url);
-    const pin = url.searchParams.get('pin');
+    if (request.method === 'GET') {
+        const url = new URL(request.url);
+        const pin = url.searchParams.get('pin');
 
-    try {
-        if (pin) {
-            const { data, error } = await supabase
-                .from<Role>('roles')
-                .select('*')
-                .eq('pin', pin)
-                .maybeSingle();
+        try {
+            if (pin) {
+                const { data, error } = await supabase
+                    .from<Role>('roles')
+                    .select('*')
+                    .eq('pin', pin)
+                    .maybeSingle();
 
-            if (error) {
-                console.error('roles: Supabase query error (pin filter)', error);
-                return jsonResponse({ message: 'Unable to retrieve role' }, { status: 500 });
+                if (error) {
+                    console.error('roles: Supabase query error (pin filter)', error);
+                    return jsonResponse({ message: 'Unable to retrieve role' }, { status: 500 });
+                }
+
+                return jsonResponse(data ?? null);
             }
 
-            return jsonResponse(data ?? null);
+            const { data, error } = await supabase.from<Role>('roles').select('*');
+
+            if (error) {
+                console.error('roles: Supabase query error', error);
+                return jsonResponse({ message: 'Unable to retrieve roles' }, { status: 500 });
+            }
+
+            return jsonResponse(data ?? []);
+        } catch (error) {
+            console.error('roles: unexpected error', error);
+            return jsonResponse({ message: 'Unexpected server error' }, { status: 500 });
         }
-
-        const { data, error } = await supabase.from<Role>('roles').select('*');
-
-        if (error) {
-            console.error('roles: Supabase query error', error);
-            return jsonResponse({ message: 'Unable to retrieve roles' }, { status: 500 });
-        }
-
-        return jsonResponse(data ?? []);
-    } catch (error) {
-        console.error('roles: unexpected error', error);
-        return jsonResponse({ message: 'Unexpected server error' }, { status: 500 });
     }
+
+    if (request.method === 'POST') {
+        let roles: Role[];
+        try {
+            roles = await parseJson<Role[]>(request);
+        } catch (error) {
+            return jsonResponse({ message: 'Invalid JSON body' }, { status: 400 });
+        }
+
+        if (!Array.isArray(roles)) {
+            return jsonResponse({ message: 'Invalid roles payload' }, { status: 400 });
+        }
+
+        try {
+            const { data: existingRoles, error: readError } = await supabase.from<Role>('roles').select('id');
+            if (readError) {
+                console.error('roles: failed to read existing roles', readError);
+                return jsonResponse({ message: 'Unable to save roles' }, { status: 500 });
+            }
+
+            const { error: upsertError } = await supabase.from<Role>('roles').upsert(roles, { onConflict: 'id' });
+            if (upsertError) {
+                console.error('roles: failed to upsert roles', upsertError);
+                return jsonResponse({ message: 'Unable to save roles' }, { status: 500 });
+            }
+
+            const existingIds = new Set((existingRoles ?? []).map(role => role.id));
+            const incomingIds = new Set(roles.map(role => role.id));
+            const idsToDelete = Array.from(existingIds).filter(id => !incomingIds.has(id));
+
+            if (idsToDelete.length > 0) {
+                const { error: deleteError } = await supabase.from('roles').delete().in('id', idsToDelete);
+                if (deleteError) {
+                    console.error('roles: failed to remove obsolete roles', deleteError);
+                    return jsonResponse({ message: 'Unable to save roles' }, { status: 500 });
+                }
+            }
+
+            return new Response(null, { status: 204 });
+        } catch (error) {
+            console.error('roles: unexpected error while saving', error);
+            return jsonResponse({ message: 'Unexpected server error' }, { status: 500 });
+        }
+    }
+
+    return jsonResponse(
+        { message: 'Method Not Allowed' },
+        {
+            status: 405,
+            headers: {
+                Allow: 'GET, POST',
+                'Content-Type': 'application/json',
+            },
+        }
+    );
 }
