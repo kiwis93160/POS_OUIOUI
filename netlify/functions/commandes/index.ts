@@ -13,14 +13,15 @@ interface CreateCommandePayload {
 const loadCommandeById = async (id: string): Promise<Commande | null> => {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
-        .from<CommandeRow>('commandes')
+        .from('commandes')
         .select(COMMANDE_SELECT)
         .eq('id', id)
         .maybeSingle();
     if (error) {
         throw new Error(error.message);
     }
-    return data ? mapCommandeRow(data) : null;
+    const row = data as CommandeRow | null;
+    return row ? mapCommandeRow(row) : null;
 };
 
 export default async function handler(request: Request): Promise<Response> {
@@ -49,7 +50,7 @@ export default async function handler(request: Request): Promise<Response> {
                     return badRequest('Invalid table id');
                 }
                 const { data, error } = await supabase
-                    .from<CommandeRow>('commandes')
+                    .from('commandes')
                     .select(COMMANDE_SELECT)
                     .eq('table_id', tableId)
                     .in('statut', ['en_cours', 'pendiente_validacion'])
@@ -58,7 +59,8 @@ export default async function handler(request: Request): Promise<Response> {
                     console.error('commandes: failed to fetch by table id', error);
                     return internalError('Unable to retrieve commande');
                 }
-                return jsonResponse(data ? mapCommandeRow(data) : null);
+                const row = data as CommandeRow | null;
+                return jsonResponse(row ? mapCommandeRow(row) : null);
             }
 
             return badRequest('Missing lookup parameters');

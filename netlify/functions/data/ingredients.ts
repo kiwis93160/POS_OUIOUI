@@ -20,7 +20,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<IngredientRow>('ingredients')
+            .from('ingredients')
             .select(INGREDIENT_SELECT)
             .order('nom', { ascending: true });
 
@@ -29,7 +29,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve ingredients');
         }
 
-        const ingredients: Ingredient[] = (data ?? []).map(mapIngredientRow);
+        const rows = (data ?? []) as IngredientRow[];
+        const ingredients: Ingredient[] = rows.map(mapIngredientRow);
 
         return jsonResponse(ingredients);
     } catch (error) {

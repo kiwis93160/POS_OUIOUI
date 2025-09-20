@@ -28,7 +28,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         const { data, error } = await supabase
-            .from<ProduitRow>('produits')
+            .from('produits')
             .select('id, nom_produit, prix_vente, categoria_id, estado, image_base64')
             .order('nom_produit', { ascending: true });
 
@@ -37,7 +37,8 @@ export default async function handler(request: Request): Promise<Response> {
             return internalError('Unable to retrieve products');
         }
 
-        const produits: Produit[] = (data ?? []).map(row => ({
+        const rows = (data ?? []) as ProduitRow[];
+        const produits: Produit[] = rows.map(row => ({
             id: row.id,
             nom_produit: row.nom_produit,
             prix_vente: row.prix_vente,
