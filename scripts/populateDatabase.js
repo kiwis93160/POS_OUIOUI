@@ -16,7 +16,7 @@ try {
     const serviceAccount = JSON.parse(serviceAccountRaw);
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        databaseURL: `https://steady-service-469913-q4.firebaseio.com`
+        databaseURL: `https://POS_OUIOUI.firebaseio.com`
     });
 } catch (e) {
     if (e.code === 'ENOENT') {
@@ -222,5 +222,5 @@ const main = async () => {
 }
 
 main().catch(error => {
-    console.error('\nUne erreur grave est survenue lors de l\'exécution du script:', error);
+    console.error("\nUne erreur grave est survenue lors de l'exécution du script:", error);
 });
