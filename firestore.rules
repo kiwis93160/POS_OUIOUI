@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================================
+    // Fonctions d'aide pour le contrôle d'accès basé sur les rôles (RBAC)
+    // =====================================================================
+
+    // L'utilisateur est-il authentifié ?
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Récupère les données de rôle de l'utilisateur depuis la collection 'users'
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // L'utilisateur est-il un administrateur ?
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+
+    // L'utilisateur est-il un serveur ?
+    function isWaiter() {
+      return isAuthenticated() && getUserRole() == 'waiter';
+    }
+
+    // L'utilisateur est-il un membre de la cuisine ?
+    function isKitchen() {
+      return isAuthenticated() && getUserRole() == 'kitchen';
+    }
+
+    // L'utilisateur est-il un employé (l'un des rôles ci-dessus) ?
+    function isEmployee() {
+      return isAuthenticated() && (isAdmin() || isWaiter() || isKitchen());
+    }
+
+    // =====================================================================
+    // Règles pour les Collections
+    // =====================================================================
+
+    // --- Collection `users` (à la racine) ---
+    // Les admins peuvent tout faire. Les utilisateurs peuvent lire leurs propres données.
+    match /users/{userId} {
+      allow read: if (isAuthenticated() && request.auth.uid == userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // --- Collection `restaurants` et ses sous-collections ---
+    match /restaurants/{restaurantId} {
+
+      // Le document principal du restaurant peut être lu par les employés pour les infos de base
+      // Seuls les admins peuvent le modifier
+      allow get: if isEmployee();
+      allow list, write: if isAdmin();
+
+      // --- Sous-collection `ingredients` ---
+      // Les employés peuvent lire les ingrédients, mais seuls les admins peuvent les gérer
+      match /ingredients/{ingredientId} {
+        allow read: if isEmployee();
+        allow write: if isAdmin();
+      }
+
+      // --- Sous-collection `categories` ---
+      // Les employés peuvent lire les catégories, mais seuls les admins peuvent les gérer
+      match /categories/{categoryId} {
+        allow read: if isEmployee();
+        allow write: if isAdmin();
+      }
+
+      // --- Sous-collection `products` ---
+      // Les employés peuvent lire les produits, mais seuls les admins peuvent les gérer
+      match /products/{productId} {
+        allow read: if isEmployee();
+        allow write: if isAdmin();
+      }
+
+      // --- Sous-collection `tables` ---
+      // Les employés peuvent lire l'état des tables.
+      // Seuls les serveurs et les admins peuvent modifier une table (statut, commande associée)
+      match /tables/{tableId} {
+        allow read: if isEmployee();
+        allow write: if isWaiter() || isAdmin();
+      }
+
+      // --- Sous-collection `orders` (la plus active) ---
+      // Employés: peuvent lire les commandes.
+      // Serveurs/Admins: peuvent créer de nouvelles commandes.
+      // Serveurs/Admins: peuvent tout mettre à jour.
+      // Cuisine: ne peut mettre à jour que le champ 'status' d'une commande existante.
+      match /orders/{orderId} {
+        allow read: if isEmployee();
+        allow create: if isWaiter() || isAdmin();
+        allow update: if (isWaiter() || isAdmin()) || 
+                      (isKitchen() && request.resource.data.keys().hasOnly(['status']));
+        allow delete: if isAdmin();
+      }
+
+      // --- Sous-collection `sales_history` ---
+      // Contient des données financières. Seuls les admins peuvent y accéder.
+      match /sales_history/{saleId} {
+        allow read, write: if isAdmin();
+      }
+    }
+  }
+}
