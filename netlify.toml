@@ -1,0 +1,12 @@
+
+# Fichier de configuration pour Netlify
+[[headers]]
+  # Appliquer cette règle à toutes les pages du site
+  for = "/*"
+  [headers.values]
+    # --- Règle de Content Security Policy (CSP) ---
+    # On définit ici les sources autorisées pour les scripts.
+    # 'self' : autorise les scripts venant de notre propre domaine.
+    # 'unsafe-eval' : autorise l'utilisation de eval(). C'est la clé pour résoudre notre problème avec Firebase.
+    # https://apis.google.com https://www.gstatic.com : autorise les scripts des services Google, nécessaires pour Firebase.
+    Content-Security-Policy = "script-src 'self' 'unsafe-eval' https://apis.google.com https://www.gstatic.com;"
