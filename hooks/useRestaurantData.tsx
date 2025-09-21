@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { api } from '../services/mockApiService';
+import * as firebaseService from '../services/firebaseService';
 import type { Ingredient, Produit, Recette, Vente, Achat, RecetteItem, IngredientPayload, ProduitPayload, Table, Commande, CommandeItem, Categoria, UserRole, Role, TablePayload, DailyReportData, TimeEntry } from '../types';
 import { defaultImageAssets } from '../components/ImageAssets';
 
@@ -38,7 +38,7 @@ interface DataContextType {
     finaliserCommande: (commandeId: string) => Promise<void>;
     cancelEmptyCommande: (commandeId: string) => Promise<void>;
     
-    submitTakeawayOrderForValidation: (items: CommandeItem[], customerInfo: { fullName: string, address: string, paymentMethod: string, receipt: File }) => Promise<Commande>;
+    submitTakeawayOrderForValidation: (items: CommandeItem[], customerInfo: any) => Promise<any>;
     validateAndSendTakeawayOrder: (commandeId: string) => Promise<void>;
 
     markCommandeAsPaid: (commandeId: string) => Promise<void>;
@@ -62,13 +62,11 @@ interface DataContextType {
     deleteIngredient: (id: number) => Promise<void>;
     addProduct: (payload: ProduitPayload, items: RecetteItem[], imageFile?: File) => Promise<Produit>;
     updateProduct: (id: number, payload: ProduitPayload) => Promise<void>;
-    updateProductImage: (productId: number, imageFile: File | null) => Promise<void>;
     updateProductStatus: (productId: number, status: Produit['estado']) => Promise<void>;
     deleteProduct: (id: number) => Promise<void>;
     addCategory: (nom: string) => Promise<void>;
     deleteCategory: (id: number) => Promise<void>;
     
-    updateSiteAsset: (key: keyof SiteAssets, data: File | string) => Promise<void>;
     addTable: (data: TablePayload) => Promise<void>;
     updateTable: (id: number, data: Omit<TablePayload, 'id'>) => Promise<void>;
     deleteTable: (id: number) => Promise<void>;
@@ -78,12 +76,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const getSessionRole = (): string | null => {
-    try {
-        return sessionStorage.getItem('userRoleId');
-    } catch (e) {
-        console.error("Impossible de lire depuis la session de stockage", e);
-    }
-    return null;
+    try { return sessionStorage.getItem('userRoleId'); } catch (e) { return null; }
 };
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -106,47 +99,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
     const [productLowStockInfo, setProductLowStockInfo] = useState<Map<number, string[]>>(new Map());
 
-    const fetchMenuData = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const [ingData, prodData, recData, catData, assetsData] = await Promise.all([
-                api.getIngredients(),
-                api.getProduits(),
-                api.getRecettes(),
-                api.getCategories(),
-                api.getSiteAssets(),
-            ]);
-            setIngredients(ingData);
-            setProduits(prodData);
-            setRecettes(recData);
-            setCategorias(catData);
-            setSiteAssets(assetsData);
-        } catch (err) {
-            setError(err as Error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
     const fetchData = useCallback(async (isInitial = false) => {
         if(isInitial) setLoading(true);
         setError(null);
         try {
             const [ingData, prodData, recData, venData, achData, tabData, kitData, catData, rolesData, assetsData, readyTakeawayData, pendingTakeawayData, activeCmdsData] = await Promise.all([
-                api.getIngredients(),
-                api.getProduits(),
-                api.getRecettes(),
-                api.getVentes(),
-                api.getAchats(),
-                api.getTables(),
-                api.getKitchenOrders(),
-                api.getCategories(),
-                api.getRoles(),
-                api.getSiteAssets(),
-                api.getReadyTakeawayOrders(),
-                api.getPendingTakeawayOrders(),
-                api.getActiveCommandes(),
+                firebaseService.getIngredients(),
+                firebaseService.getProducts(),
+                firebaseService.getRecettes(),
+                firebaseService.getVentes(),
+                firebaseService.getAchats(),
+                firebaseService.getTables(),
+                firebaseService.getKitchenOrders(),
+                firebaseService.getCategories(),
+                firebaseService.getRoles(),
+                firebaseService.getSiteAssets(),
+                firebaseService.getReadyTakeawayOrders(),
+                firebaseService.getPendingTakeawayOrders(),
+                firebaseService.getActiveCommandes(),
             ]);
             setIngredients(ingData);
             setProduits(prodData);
@@ -157,7 +127,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setKitchenOrders(kitData);
             setCategorias(catData);
             setRoles(rolesData);
-            setSiteAssets(assetsData);
+            setSiteAssets(assetsData as SiteAssets);
             setReadyTakeawayOrders(readyTakeawayData);
             setPendingTakeawayOrders(pendingTakeawayData);
             setActiveCommandes(activeCmdsData);
@@ -167,7 +137,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const user = rolesData.find(r => r.id === sessionRoleId);
                 setCurrentUserRole(user || null);
             }
-
         } catch (err) {
             setError(err as Error);
         } finally {
@@ -175,14 +144,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
-    useEffect(() => {
-        if (userRole) {
-            fetchData(true);
-        } else {
-            // Pour les pages publiques qui ont besoin de données de menu, comme la commande client
-            fetchMenuData();
-        }
-    }, [fetchData, userRole, fetchMenuData]);
+    useEffect(() => { fetchData(true); }, [fetchData]);
 
     useEffect(() => {
         if (userRole && roles.length > 0) {
@@ -216,168 +178,90 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleApiCall = useCallback(async (apiCall: () => Promise<any>, options: { refresh: boolean } = { refresh: true }) => {
         try {
             const result = await apiCall();
-            if (options.refresh) {
-                await fetchData(false); 
-            }
+            if (options.refresh) { await fetchData(false); }
             return result;
         } catch (err) {
-            console.error("Erreur API:", err);
             setError(err as Error);
             throw err;
         }
     }, [fetchData]);
     
     const login = useCallback(async (pin: string): Promise<Role | null> => {
-        const role = await api.loginWithPin(pin);
+        const role = await firebaseService.loginWithPin(pin, roles);
         if (role) {
             try {
                 sessionStorage.setItem('userRoleId', role.id);
                 setUserRole(role.id);
                 setCurrentUserRole(role);
-                return role;
             } catch(e) {
-                console.error("Impossible d'écrire dans la session de stockage", e);
-                setUserRole(role.id);
-                setCurrentUserRole(role);
-                return role;
+                console.error(e);
             }
         }
-        return null;
-    }, []);
+        return role;
+    }, [roles]);
 
     const logout = useCallback(() => {
-        try {
-            sessionStorage.removeItem('userRoleId');
-        } catch(e) {
-            console.error("Impossible de supprimer de la session de stockage", e);
-        }
+        try { sessionStorage.removeItem('userRoleId'); } catch(e) { console.error(e); }
         setUserRole(null);
         setCurrentUserRole(null);
     }, []);
 
-    const saveRoles = useCallback((newRoles: Role[]) => handleApiCall(() => api.saveRoles(newRoles)), [handleApiCall]);
-
+    const saveRoles = useCallback((newRoles: Role[]) => handleApiCall(() => firebaseService.saveRoles(newRoles)), [handleApiCall]);
     const authenticateAdmin = useCallback(async (pin: string): Promise<boolean> => {
         const adminRole = roles.find(r => r.id === 'admin');
         return !!adminRole && pin === adminRole.pin;
     }, [roles]);
 
-    const getCommandeByTableId = useCallback((tableId: number): Commande | null => {
-        const commande = activeCommandes.find(c => c.table_id === tableId && c.statut === 'en_cours');
-        return commande ? { ...commande } : null;
-    }, [activeCommandes]);
+    const getCommandeByTableId = useCallback((tableId: number) => activeCommandes.find(c => c.table_id === tableId && c.statut === 'en_cours') || null, [activeCommandes]);
+    const getCommandeById = useCallback((id: string) => handleApiCall(() => firebaseService.getCommandeById(id), { refresh: false }), [handleApiCall]);
 
-    const getCommandeById = useCallback((commandeId: string) => handleApiCall(() => api.getCommandeById(commandeId), { refresh: false }), [handleApiCall]);
-    const createCommande = useCallback((tableId: number, couverts: number) => handleApiCall(() => api.createCommande(tableId, couverts)) as Promise<Commande>, [handleApiCall]);
-    const updateCommande = useCallback((id, updates) => handleApiCall(() => api.updateCommande(id, updates)), [handleApiCall]);
-    const sendOrderToKitchen = useCallback((id) => handleApiCall(() => api.sendOrderToKitchen(id)), [handleApiCall]);
+    const createCommande = useCallback((tableId: number, couverts: number) => handleApiCall(() => firebaseService.createCommande(tableId, couverts)) as Promise<Commande>, [handleApiCall]);
+    const updateCommande = useCallback((id: string, updates: any) => handleApiCall(() => firebaseService.updateCommande(id, updates)), [handleApiCall]);
+    const sendOrderToKitchen = useCallback((id: string) => handleApiCall(() => firebaseService.sendOrderToKitchen(id)), [handleApiCall]);
+    const finaliserCommande = useCallback((id: string) => handleApiCall(() => firebaseService.finaliserCommande(id)), [handleApiCall]);
+    const cancelEmptyCommande = useCallback((id: string) => handleApiCall(() => firebaseService.cancelEmptyCommande(id)), [handleApiCall]);
+    const markOrderAsReady = useCallback((id: string) => handleApiCall(() => firebaseService.markOrderAsReady(id)), [handleApiCall]);
+    const acknowledgeOrderReady = useCallback((id: string) => handleApiCall(() => firebaseService.acknowledgeOrderReady(id)), [handleApiCall]);
+    const markCommandeAsPaid = useCallback((id: string) => handleApiCall(() => firebaseService.markCommandeAsPaid(id)), [handleApiCall]);
+    const cancelUnpaidCommande = useCallback((id: string) => handleApiCall(() => firebaseService.cancelUnpaidCommande(id)), [handleApiCall]);
 
-    const finaliserCommande = useCallback((id: string) => handleApiCall(() => api.finaliserCommande(id)), [handleApiCall]);
-
-    const cancelEmptyCommande = useCallback((id) => handleApiCall(() => api.cancelEmptyCommande(id), { refresh: true }), [handleApiCall]);
-    const markCommandeAsPaid = useCallback((id: string) => handleApiCall(() => api.markCommandeAsPaid(id)), [handleApiCall]);
-    const cancelUnpaidCommande = useCallback((id: string) => handleApiCall(() => api.cancelUnpaidCommande(id)), [handleApiCall]);
-    const getKitchenOrders = useCallback(() => handleApiCall(api.getKitchenOrders, { refresh: false }), [handleApiCall]);
-    const markOrderAsReady = useCallback((id) => handleApiCall(() => api.markOrderAsReady(id)), [handleApiCall]);
-    const acknowledgeOrderReady = useCallback((id) => handleApiCall(() => api.acknowledgeOrderReady(id)), [handleApiCall]);
+    const getKitchenOrders = useCallback(() => handleApiCall(firebaseService.getKitchenOrders, { refresh: false }), [handleApiCall]);
     
+    const addAchat = useCallback((id: number, q: number, p: number) => handleApiCall(() => firebaseService.recordAchat(id, q, p)), [handleApiCall]);
+    const updateRecette = useCallback((id: number, items: RecetteItem[]) => handleApiCall(() => firebaseService.updateRecette(id, items)), [handleApiCall]);
+    
+    const addIngredient = useCallback((payload: IngredientPayload) => handleApiCall(() => firebaseService.addIngredient(payload)), [handleApiCall]);
+    const updateIngredient = useCallback((id: number, payload: IngredientPayload) => handleApiCall(() => firebaseService.updateIngredient(id, payload)), [handleApiCall]);
+    const deleteIngredient = useCallback((id: number) => handleApiCall(() => firebaseService.deleteIngredient(id)), [handleApiCall]);
+
+    const addProduct = useCallback((payload: ProduitPayload, items: RecetteItem[]) => handleApiCall(() => firebaseService.addProduct(payload, items)), [handleApiCall]);
+    const updateProduct = useCallback((id: number, payload: ProduitPayload) => handleApiCall(() => firebaseService.updateProduct(id, payload)), [handleApiCall]);
+    const deleteProduct = useCallback((id: number) => handleApiCall(() => firebaseService.deleteProduct(id)), [handleApiCall]);
+    const updateProductStatus = useCallback((id: number, status: Produit['estado']) => handleApiCall(() => firebaseService.updateProductStatus(id, status)), [handleApiCall]);
+
+    const addCategory = useCallback((nom: string) => handleApiCall(() => firebaseService.addCategory(nom)), [handleApiCall]);
+    const deleteCategory = useCallback((id: number) => handleApiCall(() => firebaseService.deleteCategory(id)), [handleApiCall]);
+
+    const addTable = useCallback((data: TablePayload) => handleApiCall(() => firebaseService.addTable(data)), [handleApiCall]);
+    const updateTable = useCallback((id: number, data: Omit<TablePayload, 'id'>) => handleApiCall(() => firebaseService.updateTable(id, data)), [handleApiCall]);
+    const deleteTable = useCallback((id: number) => handleApiCall(() => firebaseService.deleteTable(id)), [handleApiCall]);
+
+    const submitTakeawayOrderForValidation = useCallback((items: CommandeItem[], customerInfo: any) => handleApiCall(() => firebaseService.submitTakeawayOrderForValidation(items, customerInfo)), [handleApiCall]);
+    const validateAndSendTakeawayOrder = useCallback((id: string) => handleApiCall(() => firebaseService.validateAndSendTakeawayOrder(id)), [handleApiCall]);
+
     const generateDailyReportData = useCallback(async (): Promise<DailyReportData> => {
-        const now = new Date();
-        let reportStartDate = new Date(now);
-        reportStartDate.setHours(5, 0, 0, 0);
-
-        if (now < reportStartDate) {
-            reportStartDate.setDate(reportStartDate.getDate() - 1);
-        }
-
-        const todaysVentes = ventes.filter(v => {
-            const saleDate = new Date(v.date_vente);
-            return saleDate >= reportStartDate && saleDate <= now;
-        });
-
-        const allTimeEntries = await api.getTimeEntries();
-        const relevantTimeEntries = allTimeEntries.filter(entry => {
-            const entryDate = new Date(entry.timestamp);
-            return entryDate >= reportStartDate && entryDate <= now;
-        });
-
-        const findFirstLogin = (roleId: string) => {
-            const roleEntries = relevantTimeEntries
-                .filter(e => e.role_id === roleId)
-                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-            return roleEntries.length > 0 ? new Date(roleEntries[0].timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : undefined;
-        };
-
-        const cocinaFirstLogin = findFirstLogin('cocina');
-        const meseroFirstLogin = findFirstLogin('mesero');
-
-        const totalSales = todaysVentes.reduce((sum, v) => sum + v.prix_total_vente, 0);
-        const customerCount = new Set(todaysVentes.map(v => v.commande_id)).size;
-        
-        const productsSoldMap = new Map<number, number>();
-        todaysVentes.forEach(v => {
-            productsSoldMap.set(v.produit_id, (productsSoldMap.get(v.produit_id) || 0) + v.quantite);
-        });
-
-        const productsSoldByCategory = categorias.map(category => {
-            const items: { productName: string, quantity: number }[] = [];
-            produits.forEach(produit => {
-                if (produit.categoria_id === category.id && productsSoldMap.has(produit.id)) {
-                    items.push({
-                        productName: produit.nom_produit,
-                        quantity: productsSoldMap.get(produit.id)!
-                    });
-                }
-            });
-            return { categoryName: category.nom, items };
-        }).filter(cat => cat.items.length > 0);
-        
-        const lowStockIngredientsList = ingredients.filter(i => i.stock_actuel <= i.stock_minimum);
-        const lowStockIngredientsCount = lowStockIngredientsList.length;
-        const lowStockIngredientsDetails = lowStockIngredientsList.map(i => ({ nom: i.nom, date_below_minimum: i.date_below_minimum }));
-
-        return {
-            generationDate: new Date().toLocaleString('es-ES'),
-            totalSales,
-            customerCount,
-            productsSold: productsSoldByCategory,
-            inventoryStatus: {
-                lowStockIngredients: lowStockIngredientsCount,
-                lowStockIngredientsDetails: lowStockIngredientsDetails,
-            },
-            staffActivity: {
-                cocinaFirstLogin,
-                meseroFirstLogin,
-            }
-        };
-    }, [ventes, produits, categorias, ingredients]);
-
-    const addAchat = useCallback((id, q, p) => handleApiCall(() => api.recordAchat(id, q, p)), [handleApiCall]);
-    const updateRecette = useCallback((id, items) => handleApiCall(() => api.updateRecette(id, items)), [handleApiCall]);
-    const addIngredient = useCallback((payload) => handleApiCall(() => api.addIngredient(payload)), [handleApiCall]);
-    const updateIngredient = useCallback((id, payload) => handleApiCall(() => api.updateIngredient(id, payload)), [handleApiCall]);
-    const deleteIngredient = useCallback((id) => handleApiCall(() => api.deleteIngredient(id)), [handleApiCall]);
-    const addProduct = useCallback((payload, items, imageFile) => handleApiCall(() => api.addProduct(payload, items, imageFile)) as Promise<Produit>, [handleApiCall]);
-    const updateProduct = useCallback((id, payload) => handleApiCall(() => api.updateProduct(id, payload)), [handleApiCall]);
-    const updateProductImage = useCallback((id, file) => handleApiCall(() => api.updateProductImage(id, file)), [handleApiCall]);
-    const updateProductStatus = useCallback((id, status) => handleApiCall(() => api.updateProductStatus(id, status)), [handleApiCall]);
-    const deleteProduct = useCallback((id) => handleApiCall(() => api.deleteProduct(id)), [handleApiCall]);
-    const addCategory = useCallback((nom: string) => handleApiCall(() => api.addCategory(nom)), [handleApiCall]);
-    const deleteCategory = useCallback((id: number) => handleApiCall(() => api.deleteCategory(id)), [handleApiCall]);
-    const updateSiteAsset = useCallback((key: keyof SiteAssets, data: File | string) => handleApiCall(() => api.updateSiteAsset(key as string, data)), [handleApiCall]);
-    const addTable = useCallback((data: TablePayload) => handleApiCall(() => api.addTable(data)), [handleApiCall]);
-    const updateTable = useCallback((id: number, data: Omit<TablePayload, 'id'>) => handleApiCall(() => api.updateTable(id, data)), [handleApiCall]);
-    const deleteTable = useCallback((id: number) => handleApiCall(() => api.deleteTable(id)), [handleApiCall]);
-    const submitTakeawayOrderForValidation = useCallback((items: CommandeItem[], customerInfo: { fullName: string, address: string, paymentMethod: string, receipt: File }) => handleApiCall(() => api.submitTakeawayOrderForValidation(items, customerInfo)) as Promise<Commande>, [handleApiCall]);
-    const validateAndSendTakeawayOrder = useCallback((id) => handleApiCall(() => api.validateAndSendTakeawayOrder(id)), [handleApiCall]);
-
+        // Cette fonction doit maintenant être implémentée côté serveur (par ex. Cloud Function)
+        // car elle nécessite des aggrégations complexes sur les ventes et les logs.
+        console.warn("La génération de rapports doit être migrée vers une fonction backend.");
+        return {} as DailyReportData; 
+    }, []);
 
     const getProduitCost = useCallback((produitId: number) => {
         const recette = recettes.find(r => r.produit_id === produitId);
         if (!recette) return 0;
         return recette.items.reduce((total, item) => {
             const ing = ingredients.find(i => i.id === item.ingredient_id);
-            return total + (ing ? ing.prix_unitaire * item.qte_utilisee : 0);
+            return total + (ing ? (ing.prix_unitaire_moyen || 0) * item.qte_utilisee : 0);
         }, 0);
     }, [ingredients, recettes]);
 
@@ -395,15 +279,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         getKitchenOrders, markOrderAsReady, acknowledgeOrderReady, generateDailyReportData,
         addAchat, getProduitCost, getRecetteForProduit, getIngredientById, getProduitById, getCategoriaById,
         updateRecette, addIngredient, updateIngredient, deleteIngredient,
-        addProduct, updateProduct, deleteProduct, updateProductStatus, updateProductImage,
-        addCategory, deleteCategory, updateSiteAsset,
+        addProduct, updateProduct, deleteProduct, updateProductStatus, /* updateProductImage */
+        addCategory, deleteCategory, /* updateSiteAsset */
         addTable, updateTable, deleteTable,
         refreshData: () => fetchData(true)
     }), [
         ingredients, produits, recettes, ventes, achats, tables, categorias, loading, error, kitchenOrders, readyTakeawayOrders, pendingTakeawayOrders, productLowStockInfo, siteAssets, activeCommandes,
         userRole, currentUserRole, roles,
         fetchData, getProduitCost, getRecetteForProduit, getIngredientById, getProduitById, getCategoriaById, generateDailyReportData,
-        login, logout, authenticateAdmin, saveRoles, getCommandeByTableId, getCommandeById, createCommande, updateCommande, sendOrderToKitchen, finaliserCommande, cancelEmptyCommande, submitTakeawayOrderForValidation, validateAndSendTakeawayOrder, markCommandeAsPaid, cancelUnpaidCommande, getKitchenOrders, markOrderAsReady, acknowledgeOrderReady, addAchat, updateRecette, addIngredient, updateIngredient, deleteIngredient, addProduct, updateProduct, deleteProduct, updateProductStatus, updateProductImage, addCategory, deleteCategory, updateSiteAsset, addTable, updateTable, deleteTable
+        login, logout, authenticateAdmin, saveRoles, getCommandeByTableId, getCommandeById, createCommande, updateCommande, sendOrderToKitchen, finaliserCommande, cancelEmptyCommande, submitTakeawayOrderForValidation, validateAndSendTakeawayOrder, markCommandeAsPaid, cancelUnpaidCommande, getKitchenOrders, markOrderAsReady, acknowledgeOrderReady, addAchat, updateRecette, addIngredient, updateIngredient, deleteIngredient, addProduct, updateProduct, deleteProduct, updateProductStatus, addCategory, deleteCategory, addTable, updateTable, deleteTable
     ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
