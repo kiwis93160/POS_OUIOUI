@@ -1,14 +1,4 @@
-
-# Fichier de configuration pour Netlify
 [[headers]]
-  # Appliquer cette règle à toutes les pages du site
   for = "/*"
   [headers.values]
-    # --- Règle de Content Security Policy (CSP) ---
-    # On définit ici les sources autorisées pour les scripts.
-    # 'self' : autorise les scripts venant de notre propre domaine.
-    # 'unsafe-eval' : autorise l'utilisation de eval() pour Firebase.
-    # https://apis.google.com https://www.gstatic.com : autorise les scripts des services Google pour Firebase.
-    # https://cdn.tailwindcss.com : autorise les scripts du CDN de TailwindCSS.
-    # 'sha256-...' : autorise un script inline spécifique requis par votre application.
-    Content-Security-Policy = "script-src 'self' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://cdn.tailwindcss.com 'sha256-Qfss6uYzLa/8emN0ZlP1HBDzIpEYWj4rJg6mITmJT7U=';"
+    Content-Security-Policy = "script-src 'self' https://apis.google.com https://www.gstatic.com https://cdn.tailwindcss.com 'sha256-Qfss6uYzLa/8emN0ZlP1HBDzIpEYWj4rJg6mITmJT7U=';"

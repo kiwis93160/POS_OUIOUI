@@ -25,6 +25,29 @@ export const getAchats = () => fetchData<Achat>('achats');
 export const getTables = () => fetchData<Table>('tables');
 export const getCommandes = () => fetchData<Commande>('commandes');
 export const getRoles = () => fetchData<Role>('roles');
+export const getKitchenOrders = () => {
+    const q = query(collection(db, `restaurants/${RESTAURANT_ID}/commandes`), where("estado_cocina", "in", ["recibido", "listo"]));
+    return getDocs(q).then(snapshot => snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+};
+
+export const getActiveCommandes = () => {
+    const q = query(collection(db, `restaurants/${RESTAURANT_ID}/commandes`), where("statut", "==", "en_cours"));
+    return getDocs(q).then(snapshot => snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+};
+
+export const getSiteAssets = () => fetchData<any>('site_assets');
+
+export const getReadyTakeawayOrders = () => {
+    const q = query(collection(db, `restaurants/${RESTAURANT_ID}/takeaway`), where("status", "==", "ready"));
+    return getDocs(q).then(snapshot => snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+};
+
+export const getPendingTakeawayOrders = () => {
+    const q = query(collection(db, `restaurants/${RESTAURANT_ID}/takeaway`), where("status", "==", "pending"));
+    return getDocs(q).then(snapshot => snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+};
+
+
 
 
 // =====================================================================================
@@ -93,6 +116,14 @@ export const acknowledgeOrderReady = (commandeId: string) => updateDoc(doc(db, `
 export const cancelEmptyCommande = (commandeId: string) => deleteDoc(doc(db, `restaurants/${RESTAURANT_ID}/commandes`, commandeId));
 export const markCommandeAsPaid = (commandeId: string) => updateDoc(doc(db, `restaurants/${RESTAURANT_ID}/commandes`, commandeId), { statut: 'payee' });
 export const cancelUnpaidCommande = (commandeId: string) => updateDoc(doc(db, `restaurants/${RESTAURANT_ID}/commandes`, commandeId), { statut: 'annulee' });
+export const submitTakeawayOrderForValidation = (order: any) => {
+    return addDoc(collection(db, `restaurants/${RESTAURANT_ID}/takeaway_validation`), order);
+};
+
+export const validateAndSendTakeawayOrder = (orderId: string) => {
+    const orderRef = doc(db, `restaurants/${RESTAURANT_ID}/takeaway`, orderId);
+    return updateDoc(orderRef, { status: 'validated' });
+};
 
 export const finaliserCommande = async (commandeId: string): Promise<void> => {
     await runTransaction(db, async (transaction) => {

@@ -12,6 +12,11 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      server: {
+        headers: {
+          'Content-Security-Policy': "script-src 'self' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://cdn.tailwindcss.com"
+        }
       }
     };
 });

@@ -76,6 +76,13 @@ service cloud.firestore {
         allow read: if isEmployee();
         allow write: if isAdmin();
       }
+      
+      // --- Sous-collection `roles` ---
+      // Les employés peuvent lire les rôles pour la connexion via PIN
+      match /roles/{roleId} {
+        allow read: if isEmployee();
+        allow write: if isAdmin(); // Seuls les admins peuvent modifier les rôles
+      }
 
       // --- Sous-collection `tables` ---
       // Les employés peuvent lire l'état des tables.
